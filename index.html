@@ -386092,6 +386092,61 @@ const value$1 = JSON.parse("{\"300604.SZ\":\"长川科技\",\"688037.SH\":\"芯�
 
 const value = JSON.parse("{\"9618.HK\":\"京东集团\",\"3690.HK\":\"美团\",\"1024.HK\":\"快手\",\"9999.HK\":\"网易\",\"1686.HK\":\"新意网集团\",\"2382.HK\":\"舜宇光学科技\",\"0285.HK\":\"比亚迪电子\",\"0020.HK\":\"商汤\",\"0981.HK\":\"中芯国际\",\"1347.HK\":\"华虹半导体\",\"0522.HK\":\"ASMPT\",\"0268.HK\":\"金蝶国际\",\"9988.HK\":\"阿里巴巴\",\"9888.HK\":\"百度集团\",\"9698.HK\":\"万国数据\",\"1810.HK\":\"小米集团\",\"9660.HK\":\"地平线机器人\",\"9903.HK\":\"天数智芯\",\"6082.HK\":\"壁仞科技\",\"6809.HK\":\"澜起科技\",\"0992.HK\":\"联想集团\",\"0700.HK\":\"腾讯控股\",\"0800.HK\":\"文远知行\",\"0100.HK\":\"MiniMax\",\"2513.HK\":\"智谱\"}");
 
+// Display convention for the existing taxonomy, not a change to classification.
+// Parallel businesses share a stage; each primary group stays together.
+const INDUSTRY_CHAIN = [
+ {primary:'半导体制造、设备与材料',secondary:[
+  '半导体材料','设备零部件与耗材','半导体设备','晶圆制造','封装与测试服务',
+ ]},
+ {primary:'半导体与芯片',secondary:[
+  '芯片架构与IP','计算芯片','存储芯片','通信与互连芯片','模拟与功率芯片','控制与嵌入式芯片',
+ ]},
+ {primary:'硬件组件与设备',secondary:[
+  '工业与测试硬件','电力与散热硬件','通信与互连硬件','电子制造与组装','计算与存储硬件',
+ ]},
+ {primary:'通信与航天',secondary:[
+  '地面通信与定位','卫星与航天服务',
+ ]},
+ {primary:'云与数据中心服务',secondary:[
+  '数据中心设施服务','云计算与存储','网络与边缘服务','云管理与技术服务',
+ ]},
+ {primary:'软件与数据服务',secondary:[
+  '电子设计自动化软件','系统与基础软件','开发工具与软件交付','数据管理与分析',
+  '专业数据与信息服务','AI基础模型与服务','网络安全软件与服务','数据保护与恢复',
+  'IT服务与咨询','工业设计与工程软件','企业管理与流程软件','财务与金融行业软件',
+  '语音与通信软件','内容创作与文档协作','安防与数字情报','营销与数字体验软件',
+ ]},
+ {primary:'智能终端、机器人与感知',secondary:[
+  '感知与智能终端','机器人与无人系统','智能汽车与驾驶','Mega 7',
+ ]},
+ {primary:'互联网平台与数字内容',secondary:[
+  'Mega 7','中国互联网','电商与交易平台','游戏与数字娱乐',
+ ]},
+ {primary:'数字金融服务',secondary:[
+  '支付与资金服务','信贷与投资服务',
+ ]},
+ {primary:'数字资产服务',secondary:[
+  '网络运营与算力','交易与金融基础设施','数字资产储备与管理',
+ ]},
+];
+
+// Mega 7 spans two primary groups. Show its single combined card with platforms
+// in the full view, while retaining it in both primary-group filters.
+const combinedGroupHome={'Mega 7':'互联网平台与数字内容'};
+const primaryOrder=INDUSTRY_CHAIN.map(x=>x.primary);
+const secondaryOrder=INDUSTRY_CHAIN.flatMap(x=>x.secondary.filter(
+ name=>!combinedGroupHome[name]||combinedGroupHome[name]===x.primary,
+));
+function ordered(labels,order){
+ const ranks=new Map(order.map((label,index)=>[label,index]));
+ return [...labels].sort((a,b)=>(ranks.get(a)??Number.MAX_SAFE_INTEGER)-(ranks.get(b)??Number.MAX_SAFE_INTEGER)||a.localeCompare(b,'zh-CN'));
+}
+const sortPrimaryLabels=labels=>ordered(labels,primaryOrder);
+function sortSecondaryLabels(labels,primary='all'){
+ const local=INDUSTRY_CHAIN.find(x=>x.primary===primary)?.secondary;
+ return ordered(labels,local||secondaryOrder);
+}
+
 const SERIES=[['macro','宏观','#6b8fbd'],['theme','主题','#16a092'],['specific','个股残差','#b184d8']];
 const fmt=v=>Number.isFinite(v)?`${v>0?'+':''}${v.toFixed(2)}%`:'N/A';
 const pLabel={day:'日涨跌',week:'最近一周'};
@@ -386127,7 +386182,7 @@ function Group({name,rows,periods,hidden,onSelect,search}){
  const lookup=new Map(rows.map(r=>[`${r.period}:${r.ticker}`,r]));const chartsPerRow=periods.length===2&&width>=700?2:1;
  const n=Math.max(2,Math.min(8,Math.floor((width/chartsPerRow-60)/85)));const chunks=[];for(let i=0;i<tickers.length;i+=n)chunks.push(tickers.slice(i,i+n));
  const week=rows.find(r=>r.period==='week'),day=rows.find(r=>r.period==='day');const scope=rows.filter(r=>tickers.includes(r.ticker)&&periods.includes(r.period));const domain=range(scope,hidden);
- const primaryLabels=[...new Set(scope.map(primaryLabel))];
+ const primaryLabels=sortPrimaryLabels([...new Set(scope.map(primaryLabel))]);
  return jsxRuntime.jsx(dataApp.DataComponent, { id: `group-${rows[0].groupId}`, queryId: "returns", title: `${name} · ${tickers.length} 支`, kind: "composite", variant: "card", displayRows: scope, sourceRows: scope, description: "宏观与主题为收益代理，个股为残差；新闻线索不对应精确因果贡献。主题按完整二级标签计算，筛选仅改变显示股票。组内日图与周图使用同一纵轴，组间独立缩放。", children: 
   jsxRuntime.jsxs('div', { ref: ref, 'data-reviewed-rows': "returns", className: "market-group", children: [
    jsxRuntime.jsxs('div', { className: "market-primary-labels", children: [jsxRuntime.jsx('span', { children: "一级标签"}), primaryLabels.map(label=>jsxRuntime.jsx('span', { className: "market-primary-label", children: label}, label))]})
@@ -386143,20 +386198,21 @@ function Group({name,rows,periods,hidden,onSelect,search}){
 function DashboardContent(){
  const {queries,filters,setFilter}=dataApp.useDataApp();const all=queries.returns?.rows||[];
  const editions=[...new Set(all.map(r=>r.edition))].sort().reverse();const edition=filters.edition||editions[0];const setEdition=v=>setFilter('edition',v);const mode=filters.period==='day'||filters.period==='week'?filters.period:'both';const setMode=v=>setFilter('period',v==='both'?'all':v);const setGroup=v=>setFilter('group',v);const [search,setSearch]=react.useState('');const [hidden,setHidden]=react.useState([]);const [selected,setSelected]=react.useState(null);
- const date=editions.includes(edition)?edition:editions[0];const rows=all.filter(r=>r.edition===date);const groups=[...new Set(rows.map(r=>r.group))];const periods=mode==='both'?['day','week']:[mode];
+ const date=editions.includes(edition)?edition:editions[0];const rows=all.filter(r=>r.edition===date);const groups=sortSecondaryLabels([...new Set(rows.map(r=>r.group))]);const periods=mode==='both'?['day','week']:[mode];
+ const groupIds=new Map(rows.map(r=>[r.group,r.groupId]));const authoredGroupOrder=groups.map(name=>`group-${groupIds.get(name)}`);
  const taxonomyVersions=[...new Set(rows.map(r=>r.taxonomyVersion).filter(Boolean))];
- const primaryGroups=[...new Set(rows.map(primaryLabel))];const primaryGroup=primaryGroups.includes(filters.primaryGroup)?filters.primaryGroup:'all';
- const primaryRows=rows.filter(r=>primaryGroup==='all'||primaryLabel(r)===primaryGroup);const availableGroups=[...new Set(primaryRows.map(r=>r.group))];const group=availableGroups.includes(filters.group)?filters.group:'all';
+ const primaryGroups=sortPrimaryLabels([...new Set(rows.map(primaryLabel))]);const primaryGroup=primaryGroups.includes(filters.primaryGroup)?filters.primaryGroup:'all';
+ const primaryRows=rows.filter(r=>primaryGroup==='all'||primaryLabel(r)===primaryGroup);const availableGroups=sortSecondaryLabels([...new Set(primaryRows.map(r=>r.group))],primaryGroup);const group=availableGroups.includes(filters.group)?filters.group:'all';
  const setPrimaryGroup=v=>{setFilter('primaryGroup',v);setGroup('all');setSelected(null);};
  const q=search.trim().toLowerCase();const matchesSearch=r=>!q||searchText(r).includes(q);
- const viewRows=primaryRows.filter(r=>(group==='all'||r.group===group)&&matchesSearch(r));const visibleGroups=[...new Set(viewRows.map(r=>r.group))];
+ const viewRows=primaryRows.filter(r=>(group==='all'||r.group===group)&&matchesSearch(r));const visibleGroups=sortSecondaryLabels([...new Set(viewRows.map(r=>r.group))],primaryGroup);
  const unique=[...new Set(rows.map(r=>r.ticker))].length;const visibleUnique=[...new Set(viewRows.map(r=>r.ticker))].length;const dayValid=viewRows.filter(r=>r.period==='day'&&Number.isFinite(r.actual)).length;const weekValid=viewRows.filter(r=>r.period==='week'&&Number.isFinite(r.actual)).length;const end=[...new Set(viewRows.map(r=>r.end).filter(Boolean))].sort().at(-1);
  return jsxRuntime.jsxs('article', { className: "market-page", children: [
   jsxRuntime.jsxs('div', { className: "market-controls", children: [jsxRuntime.jsx(dataApp.Dropdown, { label: "发布归档", showLabel: true, choices: editions, value: date, onChange: setEdition,}), jsxRuntime.jsx(dataApp.SegmentedControl, { label: "涨跌区间", value: mode, onChange: setMode, options: [{value:'both',label:'日图 + 周图'},{value:'day',label:'日涨跌'},{value:'week',label:'最近一周'}],}), jsxRuntime.jsx(dataApp.Dropdown, { label: "一级标签", showLabel: true, choices: ['all',...primaryGroups], choiceLabels: {all:'全部一级标签'}, value: primaryGroup, onChange: setPrimaryGroup,}), jsxRuntime.jsx(dataApp.Dropdown, { label: "二级标签", showLabel: true, choices: ['all',...availableGroups], choiceLabels: {all:'全部二级标签'}, value: group, onChange: setGroup,}), jsxRuntime.jsxs('label', { className: "market-search", children: [jsxRuntime.jsx('span', { children: "查找股票"}), jsxRuntime.jsx('input', { value: search, onChange: e=>setSearch(e.target.value), placeholder: "代码或公司名", type: "search",})]})]})
   , jsxRuntime.jsxs('div', { className: "market-status", children: [jsxRuntime.jsxs('span', { children: ["本期名单 " , jsxRuntime.jsx('b', { children: unique}), " 个代码 · "   , jsxRuntime.jsx('b', { children: primaryGroups.length}), " 个一级标签 · "   , jsxRuntime.jsx('b', { children: groups.length}), " 个二级标签" ]}), jsxRuntime.jsxs('span', { children: ["当前显示 " , jsxRuntime.jsx('b', { children: visibleUnique}), " 个代码" ]}), jsxRuntime.jsxs('span', { children: ["行情截止 " , jsxRuntime.jsx('b', { children: end||'—'}), " 当地收盘" ]}), jsxRuntime.jsxs('span', { children: ["日图有效 " , dayValid, " · 周图有效 "   , weekValid]}), jsxRuntime.jsxs('span', { children: ["每日北京时间 " , jsxRuntime.jsx('b', { children: "05:00"}), " 开始核查，通过后发布" ]})]})
   , jsxRuntime.jsx('p', { className: "market-method", children: "宏观 = 当地宽基涨跌；主题 = 同二级标签超额收益均值；个股 = 剩余涨跌。一级标签用于筛选，不拆分同一二级标签的主题计算。三项加总等于实际表现，是收益代理拆分，新闻线索另行核实，不能视为精确因果贡献。"      })
-  , jsxRuntime.jsxs('div', { className: "market-legend", children: [SERIES.map(([k,l,c])=>jsxRuntime.jsxs('button', { 'aria-pressed': !hidden.includes(k), onClick: ()=>setHidden(h=>h.includes(k)?h.filter(x=>x!==k):[...h,k]), className: hidden.includes(k)?'off':'', children: [jsxRuntime.jsx('i', { style: {background:c},}), l]}, k)), jsxRuntime.jsx('span', { children: "◆ 实际涨跌" }), jsxRuntime.jsx('span', { className: "market-scale", children: "组内同尺度 · 组间独立缩放 · 筛选不重算主题"    })]})
-  , visibleGroups.length===0?jsxRuntime.jsx('div', { className: "market-empty", children: "没有匹配的股票。请修改搜索或标签筛选。"}):jsxRuntime.jsx(dataApp.SortableRegion, { id: "market:groups", variant: "freeform", authoredRevision: 1, className: "market-groups", children: visibleGroups.map(name=>{const gRows=primaryRows.filter(r=>r.group===name);return jsxRuntime.jsx(dataApp.SortableItem, { id: `group-${gRows[0].groupId}`, label: name, kind: "composite", children: jsxRuntime.jsx(Group, { name: name, rows: gRows, periods: periods, hidden: hidden, onSelect: setSelected, search: q,})}, name)})})
+  , jsxRuntime.jsxs('div', { className: "market-legend", children: [SERIES.map(([k,l,c])=>jsxRuntime.jsxs('button', { 'aria-pressed': !hidden.includes(k), onClick: ()=>setHidden(h=>h.includes(k)?h.filter(x=>x!==k):[...h,k]), className: hidden.includes(k)?'off':'', children: [jsxRuntime.jsx('i', { style: {background:c},}), l]}, k)), jsxRuntime.jsx('span', { children: "◆ 实际涨跌" }), jsxRuntime.jsx('span', { children: "分组：上游 → 下游（同环节并列）"  }), jsxRuntime.jsx('span', { className: "market-scale", children: "组内同尺度 · 组间独立缩放 · 筛选不重算主题"    })]})
+  , visibleGroups.length===0?jsxRuntime.jsx('div', { className: "market-empty", children: "没有匹配的股票。请修改搜索或标签筛选。"}):jsxRuntime.jsx(dataApp.SortableRegion, { id: "market:groups", variant: "freeform", authoredRevision: 2, authoredOrder: authoredGroupOrder, className: "market-groups", children: visibleGroups.map(name=>{const gRows=primaryRows.filter(r=>r.group===name);return jsxRuntime.jsx(dataApp.SortableItem, { id: `group-${gRows[0].groupId}`, label: name, kind: "composite", children: jsxRuntime.jsx(Group, { name: name, rows: gRows, periods: periods, hidden: hidden, onSelect: setSelected, search: q,})}, name)})})
   , jsxRuntime.jsxs('p', { className: "market-footer", children: ["名单与两级标签采用本期同步的飞书版本", taxonomyVersions.length?`（${taxonomyVersions.join('、')}）`:'', "，不自动读取飞书后续修改。不同市场按当地已完成收盘计算、本币口径；缺失或退市代码保留为 N/A。日图、周图日期见各图。归档只收录实际发布的数据。" ]})
   , jsxRuntime.jsx(dataApp.Dialog, { open: !!selected, onClose: ()=>setSelected(null), title: selected?`${stockLabel(selected)}${selected.alias?' → '+selected.alias:''} · ${pLabel[selected.period]}`:'', expanded: true, children: selected&&jsxRuntime.jsxs('div', { className: "market-detail", children: [jsxRuntime.jsxs('h3', { children: [companyName(selected), " " , jsxRuntime.jsx('span', { children: fmt(selected.actual)})]}), jsxRuntime.jsxs('p', { children: [primaryLabel(selected), " › "  , selected.group, " · "  , selected.start, " → "  , selected.end]}), jsxRuntime.jsx('div', { className: "market-detail-values", children: SERIES.map(([k,l,c])=>jsxRuntime.jsxs('div', { children: [jsxRuntime.jsx('i', { style: {background:c},}), l, jsxRuntime.jsx('b', { children: Number.isFinite(selected[k])?selected[k].toFixed(2)+' pp':'N/A'})]}, k))}), jsxRuntime.jsxs('p', { children: [jsxRuntime.jsx('b', { children: "个股线索"}), "　", selected.note||selected.na_reason]}), jsxRuntime.jsx('p', { children: selected.detail}), selected.weekly_context&&jsxRuntime.jsxs('details', { children: [jsxRuntime.jsx('summary', { children: "整周背景（非已确认当日催化）"}), jsxRuntime.jsx('p', { children: typeof selected.weekly_context==='string'?selected.weekly_context:JSON.stringify(selected.weekly_context)})]}), jsxRuntime.jsxs('p', { children: ["收盘价：", selected.start_price??'N/A', " → "  , selected.end_price??'N/A', " " , selected.currency, "；宏观代理：", selected.benchmark_name||selected.benchmark, "。"]}), jsxRuntime.jsx('p', { children: selected.status}), jsxRuntime.jsx(Links, { links: selected.links,})]})})
  ]})
